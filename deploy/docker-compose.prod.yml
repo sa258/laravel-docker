@@ -1,0 +1,69 @@
+version: '3.8'
+
+networks:
+  ec:
+    name: ec
+
+volumes:
+  redis:
+    driver: local
+
+services:
+  ec-fpm:
+    env_file: ../app/.env
+    environment:
+      - CONTAINER_ROLE=fpm
+      - PHP_OPCACHE_ENABLED=1
+      - PHP_MEMORY_LIMIT=3048M
+      - PM_MAX_CHILDREN=100
+      - PM_START_SERVERS=50
+      - PM_MIN_SPARE_SERVERS=3
+      - PM_MAX_SPARE_SERVERS=5
+      - PM_MAX_REQUEST=1000
+    build:
+      context: ../
+      dockerfile: build/php/Dockerfile
+      target: php
+    volumes:
+      - ../app:/app
+    networks:
+      - ec
+    deploy:
+      resources:
+        limits:
+          cpus: '6'              # Adjust based on available vCPUs
+          memory: '20G'          # Adjust based on available memory
+        reservations:
+          cpus: '4'              # Adjust based on available vCPUs
+          memory: '12G'           # Adjust based on available memory
+
+  nginx:
+    env_file: ../app/.env
+    build:
+      context: ../
+      dockerfile: build/nginx/Dockerfile
+      target: nginx
+    volumes:
+      - ../app:/app
+    depends_on:
+      - ec-fpm
+      - redis
+    networks:
+      - ec
+    ports:
+      - '80:80'
+  redis:
+    image: redis:7.0-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis:/data
+    networks:
+      - ec
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: '12G'
+        reservations:
+          cpus: '2'
+          memory: '8G'

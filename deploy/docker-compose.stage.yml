@@ -1,0 +1,56 @@
+version: '3.8'
+
+networks:
+  ec:
+    name: ec
+
+volumes:
+  db:
+    driver: local
+  redis:
+    driver: local
+
+services:
+  ec-fpm:
+    env_file: ../app/.env
+    environment:
+      - CONTAINER_ROLE=fpm
+      - PHP_OPCACHE_ENABLED=0
+      - PHP_MEMORY_LIMIT=2048M
+      - PM_MAX_CHILDREN=5
+      - PM_START_SERVERS=1
+      - PM_MIN_SPARE_SERVERS=1
+      - PM_MAX_SPARE_SERVERS=2
+      - PM_MAX_REQUEST=300
+    build:
+      context: ../
+      dockerfile: build/php/Dockerfile
+      target: php
+    volumes:
+      - ../app:/app
+    networks:
+      - ec
+
+  nginx:
+    env_file: ../app/.env
+    build:
+      context: ../
+      dockerfile: build/nginx/Dockerfile
+      target: nginx
+    volumes:
+      - ../app:/app
+    depends_on:
+      - ec-fpm
+      - redis
+    networks:
+      - ec
+    ports:
+      - '80:80'
+
+  redis:
+    image: redis:7.0-alpine
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis:/data
+    networks:
+      - ec
